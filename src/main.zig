@@ -13,25 +13,25 @@ pub fn main(init: std.process.Init) !void {
     var ipc_reader = ipc_stream.reader(init.io, &ipc_read_buf);
     var ipc_writer = ipc_stream.writer(init.io, &ipc_write_buf);
 
-    // 2. Initialize the connection wrapper.
+    // 3. Initialize the connection wrapper.
     var ipc = IpcConnection.init(&ipc_reader.interface, &ipc_writer.interface);
 
-    // 3. Send IPC messages.
+    // 4. Send IPC messages.
     const version = try ipc.getVersion(init.gpa);
     defer version.deinit();
     std.debug.print("sway version: {s}\n", .{version.value.human_readable});
 
-    // 4. Subscribe to events.
-    // 4a. Define events to subscribe.
+    // 5. Subscribe to events.
+    // 5a. Define events to subscribe.
     const events: []const swayipc.Event = &.{ .workspace, .tick };
 
-    // 4b. Define event handlers.
+    // 5b. Define event handlers.
     const handlers: IpcConnection.EventHandlers = .{
         .default = handleEvent,
         .tick = handleTickEvent,
     };
 
-    // 4c. Send the subscribe IPC message.
+    // 5c. Send the subscribe IPC message.
     try ipc.subscribe(init.gpa, events, handlers);
 }
 
