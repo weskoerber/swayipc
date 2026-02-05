@@ -126,7 +126,7 @@ pub fn main(init: std.process.Init) !void {
 
     // SUBSCRIBE
     {
-        _ = try conn.subscribe(init.gpa, &.{.tick}, .{
+        _ = try conn.subscribe(init.gpa, &.{ .tick, .workspace }, .{
             .default = handleEvent,
             .tick = handleTickEvent,
         });

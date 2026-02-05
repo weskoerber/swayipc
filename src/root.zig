@@ -44,10 +44,28 @@ pub const IpcConnection = struct {
 
     pub const EventHandlers = struct {
         default: ?*const Default = null,
+        workspace: ?*const Workspace = null,
+        output: ?*const Output = null,
+        mode: ?*const Mode = null,
+        window: ?*const Window = null,
+        bar_config: ?*const BarConfig = null,
+        binding: ?*const Binding = null,
+        shutdown: ?*const Shutdown = null,
         tick: ?*const Tick = null,
+        bar_state: ?*const BarState = null,
+        input: ?*const Input = null,
 
         pub const Default = fn (std.mem.Allocator, IpcPayload.Event, []const u8) bool;
+        pub const Workspace = fn (events.Workspace) bool;
+        pub const Output = fn (events.Output) bool;
+        pub const Mode = fn (events.Mode) bool;
+        pub const Window = fn (events.Window) bool;
+        pub const BarConfig = fn (events.BarConfigUpdate) bool;
+        pub const Binding = fn (events.Binding) bool;
+        pub const Shutdown = fn (events.Shutdown) bool;
         pub const Tick = fn (events.Tick) bool;
+        pub const BarState = fn (events.BarStateUpdate) bool;
+        pub const Input = fn (events.Input) bool;
     };
 
     pub fn init(reader: *std.Io.Reader, writer: *std.Io.Writer) IpcConnection {
@@ -181,6 +199,62 @@ pub const IpcConnection = struct {
             var handled: bool = false;
 
             switch (event) {
+                .workspace => {
+                    if (handlers.workspace) |handler| {
+                        const json = try parseEventJson(events.Workspace, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .output => {
+                    if (handlers.output) |handler| {
+                        const json = try parseEventJson(events.Output, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .mode => {
+                    if (handlers.mode) |handler| {
+                        const json = try parseEventJson(events.Mode, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .window => {
+                    if (handlers.window) |handler| {
+                        const json = try parseEventJson(events.Window, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .barconfig_update => {
+                    if (handlers.bar_config) |handler| {
+                        const json = try parseEventJson(events.BarConfigUpdate, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .binding => {
+                    if (handlers.binding) |handler| {
+                        const json = try parseEventJson(events.Binding, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .shutdown => {
+                    if (handlers.shutdown) |handler| {
+                        const json = try parseEventJson(events.Shutdown, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
                 .tick => {
                     if (handlers.tick) |handler| {
                         const json = try parseEventJson(events.Tick, gpa, reply.body);
@@ -189,7 +263,22 @@ pub const IpcConnection = struct {
                         handled = true;
                     }
                 },
-                else => {},
+                .bar_state_update => {
+                    if (handlers.bar_state) |handler| {
+                        const json = try parseEventJson(events.BarStateUpdate, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
+                .input => {
+                    if (handlers.input) |handler| {
+                        const json = try parseEventJson(events.Input, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
+                    }
+                },
             }
 
             if (!handled) {
