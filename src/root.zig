@@ -55,7 +55,7 @@ pub const IpcConnection = struct {
         bar_state: ?*const BarState = null,
         input: ?*const Input = null,
 
-        pub const Default = fn (std.mem.Allocator, IpcPayload.Event, []const u8) bool;
+        pub const Default = fn (std.mem.Allocator, Event, []const u8) bool;
         pub const Workspace = fn (events.Workspace) bool;
         pub const Output = fn (events.Output) bool;
         pub const Mode = fn (events.Mode) bool;
@@ -82,7 +82,7 @@ pub const IpcConnection = struct {
     pub fn subscribe(
         self: *IpcConnection,
         gpa: std.mem.Allocator,
-        event_list: []const IpcPayload.Event,
+        event_list: []const Event,
         handlers: EventHandlers,
     ) !void {
         const body = try std.json.Stringify.valueAlloc(gpa, event_list, .{});
@@ -153,7 +153,7 @@ pub const IpcConnection = struct {
         return try self.sendAndParseIpcMessage([]const replies.Seat, gpa, .get_seats, &.{});
     }
 
-    pub fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, message: IpcPayload.Message, body: []const u8) !IpcPayload {
+    pub fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, message: Message, body: []const u8) !IpcPayload {
         const msg: IpcPayload = .{
             .header = .{
                 .magic = std.mem.bytesToValue([6]u8, IpcPayload.Header.magic_value),
@@ -166,7 +166,7 @@ pub const IpcConnection = struct {
         try IpcPayload.write(&msg, self.writer);
         var reply = try IpcPayload.readHead(self.reader);
 
-        assert(std.enums.fromInt(IpcPayload.Message, @intFromEnum(reply.header.payload_type)) != null);
+        assert(std.enums.fromInt(Message, @intFromEnum(reply.header.payload_type)) != null);
 
         try reply.readBody(gpa, self.reader);
         return reply;
@@ -176,7 +176,7 @@ pub const IpcConnection = struct {
         self: *IpcConnection,
         comptime T: type,
         gpa: std.mem.Allocator,
-        payload_type: IpcPayload.Message,
+        payload_type: Message,
         body: []const u8,
     ) !std.json.Parsed(T) {
         var reply = try self.sendIpcMessage(gpa, payload_type, body);
@@ -335,39 +335,6 @@ pub const IpcPayload = struct {
         }
 
         break :blk @Enum(u32, .exhaustive, names, &fields);
-    };
-
-    pub const Message = enum(u32) {
-        // Messages
-        run_command = 0,
-        get_workspaces = 1,
-        subscribe = 2,
-        get_outputs = 3,
-        get_tree = 4,
-        get_marks = 5,
-        get_bar_config = 6,
-        get_version = 7,
-        get_binding_modes = 8,
-        get_config = 9,
-        send_tick = 10,
-        sync = 11,
-        get_binding_state = 12,
-        get_inputs = 100,
-        get_seats = 101,
-    };
-
-    pub const Event = enum(u32) {
-        // Events
-        workspace = 0x8000_0000,
-        output = 0x8000_0001,
-        mode = 0x8000_0002,
-        window = 0x8000_0003,
-        barconfig_update = 0x8000_0004,
-        binding = 0x8000_0005,
-        shutdown = 0x8000_0006,
-        tick = 0x8000_0007,
-        bar_state_update = 0x8000_0014,
-        input = 0x8000_0015,
     };
 
     pub fn write(msg: *const IpcPayload, w: *Writer) !void {
@@ -776,4 +743,37 @@ pub const events = struct {
             libinput_config,
         };
     };
+};
+
+pub const Message = enum(u32) {
+    // Messages
+    run_command = 0,
+    get_workspaces = 1,
+    subscribe = 2,
+    get_outputs = 3,
+    get_tree = 4,
+    get_marks = 5,
+    get_bar_config = 6,
+    get_version = 7,
+    get_binding_modes = 8,
+    get_config = 9,
+    send_tick = 10,
+    sync = 11,
+    get_binding_state = 12,
+    get_inputs = 100,
+    get_seats = 101,
+};
+
+pub const Event = enum(u32) {
+    // Events
+    workspace = 0x8000_0000,
+    output = 0x8000_0001,
+    mode = 0x8000_0002,
+    window = 0x8000_0003,
+    barconfig_update = 0x8000_0004,
+    binding = 0x8000_0005,
+    shutdown = 0x8000_0006,
+    tick = 0x8000_0007,
+    bar_state_update = 0x8000_0014,
+    input = 0x8000_0015,
 };

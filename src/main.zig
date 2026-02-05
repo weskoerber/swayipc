@@ -1,7 +1,6 @@
 const std = @import("std");
 const swayipc = @import("swayipc");
 const IpcConnection = swayipc.IpcConnection;
-const IpcPayload = swayipc.IpcPayload;
 
 pub fn main(init: std.process.Init) !void {
     // 1. Connect to the socket at $SWAYSOCK.
@@ -24,7 +23,7 @@ pub fn main(init: std.process.Init) !void {
 
     // 4. Subscribe to events.
     // 4a. Define events to subscribe.
-    const events: []const IpcPayload.Event = &.{ .workspace, .tick };
+    const events: []const swayipc.Event = &.{ .workspace, .tick };
 
     // 4b. Define event handlers.
     const handlers: IpcConnection.EventHandlers = .{
@@ -36,7 +35,7 @@ pub fn main(init: std.process.Init) !void {
     try ipc.subscribe(init.gpa, events, handlers);
 }
 
-fn handleEvent(gpa: std.mem.Allocator, event: swayipc.IpcPayload.Event, body: []const u8) bool {
+fn handleEvent(gpa: std.mem.Allocator, event: swayipc.Event, body: []const u8) bool {
     _ = gpa;
     _ = body;
 
