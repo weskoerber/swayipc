@@ -1,3 +1,10 @@
+# swayipc
+
+A Sway IPC client implementation.
+
+## Usage
+
+```zig
 const std = @import("std");
 const swayipc = @import("swayipc");
 const IpcConnection = swayipc.IpcConnection;
@@ -48,3 +55,4 @@ fn handleEvent(gpa: std.mem.Allocator, event: swayipc.IpcPayload.Event, body: []
 fn handleTickEvent(tick: swayipc.events.Tick) bool {
     return !std.mem.eql(u8, tick.payload, "HUP");
 }
+```
