@@ -1,0 +1,12 @@
+.{
+    .name = .swayipc,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.16.0-dev.2471+e9eadee00",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+    .fingerprint = 0x582c20e17d300307,
+}
