@@ -13,8 +13,6 @@ pub fn main(init: std.process.Init) !void {
     var stream_reader = stream.reader(init.io, &read_buf);
     var stream_writer = stream.writer(init.io, &write_buf);
 
-    const json_opts: std.json.ParseOptions = .{ .ignore_unknown_fields = true };
-
     var conn: swayipc.IpcConnection = .init(&stream_reader.interface, &stream_writer.interface);
 
     // RUN_COMMAND
@@ -28,10 +26,7 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_WORKSPACES
     {
-        const reply = try conn.getWorkspaces(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const workspaces = try std.json.parseFromSlice([]const replies.Workspace, init.gpa, reply.body, json_opts);
+        const workspaces = try conn.getWorkspaces(init.gpa);
         defer workspaces.deinit();
 
         std.log.debug("{any}", .{workspaces.value});
@@ -39,10 +34,7 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_OUTPUT
     {
-        const reply = try conn.getOutputs(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const outputs = try std.json.parseFromSlice([]const replies.Output, init.gpa, reply.body, json_opts);
+        const outputs = try conn.getOutputs(init.gpa);
         defer outputs.deinit();
 
         std.log.debug("{any}", .{outputs.value});
@@ -50,21 +42,15 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_TREE
     {
-        const reply = try conn.getTree(init.gpa);
-        defer reply.deinit(init.gpa);
+        const tree = try conn.getTree(init.gpa);
+        defer tree.deinit();
 
-        const outputs = try std.json.parseFromSlice(replies.Node, init.gpa, reply.body, json_opts);
-        defer outputs.deinit();
-
-        std.log.debug("{any}", .{outputs.value});
+        std.log.debug("{any}", .{tree.value});
     }
 
     // GET_MARKS
     {
-        const reply = try conn.getMarks(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const marks = try std.json.parseFromSlice([]const []const u8, init.gpa, reply.body, json_opts);
+        const marks = try conn.getMarks(init.gpa);
         defer marks.deinit();
 
         std.log.debug("{any}", .{marks.value});
@@ -72,29 +58,20 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_BAR_CONFIG
     {
-        const reply = try conn.getBars(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const bars = try std.json.parseFromSlice([]const []const u8, init.gpa, reply.body, json_opts);
+        const bars = try conn.getBars(init.gpa);
         defer bars.deinit();
 
-        std.log.debug("{any}", .{bars});
+        std.log.debug("{any}", .{bars.value});
 
-        const reply2 = try conn.getBarConfig(init.gpa, bars.value[0]);
-        defer reply2.deinit(init.gpa);
+        const bar_config = try conn.getBarConfig(init.gpa, bars.value[0]);
+        defer bar_config.deinit();
 
-        const bar = try std.json.parseFromSlice(replies.BarConfig, init.gpa, reply2.body, json_opts);
-        defer bar.deinit();
-
-        std.log.debug("{any}", .{bar.value});
+        std.log.debug("{any}", .{bar_config.value});
     }
 
     // GET_VERSION
     {
-        const reply = try conn.getVersion(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const version = try std.json.parseFromSlice(replies.Version, init.gpa, reply.body, json_opts);
+        const version = try conn.getVersion(init.gpa);
         defer version.deinit();
 
         std.log.info("sway version: {s}", .{version.value.human_readable});
@@ -102,21 +79,15 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_BINDING_MODES
     {
-        const reply = try conn.getBindingModes(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const modes = try std.json.parseFromSlice([]const []const u8, init.gpa, reply.body, json_opts);
+        const modes = try conn.getBindingModes(init.gpa);
         defer modes.deinit();
-        //
+
         std.log.debug("{any}", .{modes.value});
     }
 
     // GET_CONFIG
     {
-        const reply = try conn.getConfig(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const config = try std.json.parseFromSlice(replies.Config, init.gpa, reply.body, json_opts);
+        const config = try conn.getConfig(init.gpa);
         defer config.deinit();
 
         std.log.debug("{any}", .{config.value.config});
@@ -124,10 +95,7 @@ pub fn main(init: std.process.Init) !void {
 
     // SEND_TICK
     {
-        const reply = try conn.sendTick(init.gpa, &.{});
-        defer reply.deinit(init.gpa);
-
-        const tick = try std.json.parseFromSlice(replies.Tick, init.gpa, reply.body, json_opts);
+        const tick = try conn.sendTick(init.gpa, &.{});
         defer tick.deinit();
 
         std.log.debug("{any}", .{tick.value});
@@ -135,21 +103,14 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_BINDING_STATE
     {
-        const reply = try conn.getBindingState(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const state = try std.json.parseFromSlice(replies.BindingState, init.gpa, reply.body, json_opts);
-        defer state.deinit();
-
-        std.log.debug("{any}", .{state.value});
+        const binding_state = try conn.getBindingState(init.gpa);
+        defer binding_state.deinit();
+        std.log.debug("{any}", .{binding_state.value});
     }
 
     // GET_INPUTS
     {
-        const reply = try conn.getInputs(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const inputs = try std.json.parseFromSlice([]const replies.Input, init.gpa, reply.body, json_opts);
+        const inputs = try conn.getInputs(init.gpa);
         defer inputs.deinit();
 
         std.log.debug("{any}", .{inputs.value});
@@ -157,10 +118,7 @@ pub fn main(init: std.process.Init) !void {
 
     // GET_SEATS
     {
-        const reply = try conn.getSeats(init.gpa);
-        defer reply.deinit(init.gpa);
-
-        const seats = try std.json.parseFromSlice([]const replies.Seat, init.gpa, reply.body, json_opts);
+        const seats = try conn.getSeats(init.gpa);
         defer seats.deinit();
 
         std.log.debug("{any}", .{seats.value});

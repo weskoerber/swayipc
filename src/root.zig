@@ -40,6 +40,8 @@ pub const IpcConnection = struct {
 
     event_handler: ?*const EventHandler = null,
 
+    const json_opts: std.json.ParseOptions = .{ .ignore_unknown_fields = true, .allocate = .alloc_always };
+
     pub const EventHandler = fn (std.mem.Allocator, IpcPayload) bool;
 
     pub fn init(reader: *std.Io.Reader, writer: *std.Io.Writer) IpcConnection {
@@ -75,59 +77,59 @@ pub const IpcConnection = struct {
         try self.listenForEvents(gpa, handler);
     }
 
-    pub fn getWorkspaces(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_workspaces, &.{});
+    pub fn getWorkspaces(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const replies.Workspace) {
+        return try self.sendAndParseIpcMessage([]const replies.Workspace, gpa, .get_workspaces, &.{});
     }
 
-    pub fn getOutputs(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_outputs, &.{});
+    pub fn getOutputs(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const replies.Output) {
+        return try self.sendAndParseIpcMessage([]const replies.Output, gpa, .get_outputs, &.{});
     }
 
-    pub fn getTree(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_tree, &.{});
+    pub fn getTree(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed(replies.Node) {
+        return try self.sendAndParseIpcMessage(replies.Node, gpa, .get_tree, &.{});
     }
 
-    pub fn getMarks(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_marks, &.{});
+    pub fn getMarks(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const []const u8) {
+        return try self.sendAndParseIpcMessage([]const []const u8, gpa, .get_marks, &.{});
     }
 
-    pub fn getBars(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_bar_config, &.{});
+    pub fn getBars(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const []const u8) {
+        return try self.sendAndParseIpcMessage([]const []const u8, gpa, .get_bar_config, &.{});
     }
 
-    pub fn getBarConfig(self: *IpcConnection, gpa: std.mem.Allocator, id: []const u8) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_bar_config, id);
+    pub fn getBarConfig(self: *IpcConnection, gpa: std.mem.Allocator, id: []const u8) !std.json.Parsed(replies.BarConfig) {
+        return try self.sendAndParseIpcMessage(replies.BarConfig, gpa, .get_bar_config, id);
     }
 
-    pub fn getVersion(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_version, &.{});
+    pub fn getVersion(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed(replies.Version) {
+        return try self.sendAndParseIpcMessage(replies.Version, gpa, .get_version, &.{});
     }
 
-    pub fn getBindingModes(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_binding_modes, &.{});
+    pub fn getBindingModes(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const []const u8) {
+        return try self.sendAndParseIpcMessage([]const []const u8, gpa, .get_binding_modes, &.{});
     }
 
-    pub fn getConfig(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_config, &.{});
+    pub fn getConfig(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed(replies.Config) {
+        return try self.sendAndParseIpcMessage(replies.Config, gpa, .get_config, &.{});
     }
 
-    pub fn sendTick(self: *IpcConnection, gpa: std.mem.Allocator, body: []const u8) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .send_tick, body);
+    pub fn sendTick(self: *IpcConnection, gpa: std.mem.Allocator, body: []const u8) !std.json.Parsed(replies.Tick) {
+        return try self.sendAndParseIpcMessage(replies.Tick, gpa, .send_tick, body);
     }
 
-    pub fn getBindingState(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_binding_state, &.{});
+    pub fn getBindingState(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed(replies.BindingState) {
+        return try self.sendAndParseIpcMessage(replies.BindingState, gpa, .get_binding_state, &.{});
     }
 
-    pub fn getInputs(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_inputs, &.{});
+    pub fn getInputs(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const replies.Input) {
+        return try self.sendAndParseIpcMessage([]const replies.Input, gpa, .get_inputs, &.{});
     }
 
-    pub fn getSeats(self: *IpcConnection, gpa: std.mem.Allocator) !IpcPayload {
-        return try self.sendIpcMessage(gpa, .get_seats, &.{});
+    pub fn getSeats(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const replies.Seat) {
+        return try self.sendAndParseIpcMessage([]const replies.Seat, gpa, .get_seats, &.{});
     }
 
-    fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, payload_type: IpcPayload.PayloadType, body: []const u8) !IpcPayload {
+    pub fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, payload_type: IpcPayload.PayloadType, body: []const u8) !IpcPayload {
         const msg: IpcPayload = .{
             .header = .{
                 .magic = std.mem.bytesToValue([6]u8, IpcPayload.Header.magic_value),
@@ -141,6 +143,19 @@ pub const IpcConnection = struct {
         var reply = try IpcPayload.readHead(self.reader);
         try reply.readBody(gpa, self.reader);
         return reply;
+    }
+
+    fn sendAndParseIpcMessage(
+        self: *IpcConnection,
+        comptime T: type,
+        gpa: std.mem.Allocator,
+        payload_type: IpcPayload.PayloadType,
+        body: []const u8,
+    ) !std.json.Parsed(T) {
+        var reply = try self.sendIpcMessage(gpa, payload_type, body);
+        defer reply.deinit(gpa);
+
+        return try std.json.parseFromSlice(T, gpa, reply.body, json_opts);
     }
 
     fn listenForEvents(self: *IpcConnection, gpa: std.mem.Allocator, handler: *const EventHandler) !void {
