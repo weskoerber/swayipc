@@ -55,3 +55,21 @@ fn handleTickEvent(tick: swayipc.events.Tick) bool {
     return !std.mem.eql(u8, tick.payload, "HUP");
 }
 ```
+
+## Run the example
+
+Run the provided example to demonstrate basic capabilities:
+
+```shell
+zig build run
+```
+
+This will print out sway's version then subscribe to the `workspace` and `tick`
+event.
+
+If the payload of a `tick` event is `HUP`, the events are unsubscribed and the
+program terminates. To send `HUP` in a tick event, use `swaymsg`:
+
+```shell
+swaymsg -t send_tick HUP
+```
