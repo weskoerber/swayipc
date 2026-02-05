@@ -126,29 +126,22 @@ pub fn main(init: std.process.Init) !void {
 
     // SUBSCRIBE
     {
-        _ = try conn.subscribe(init.gpa, &.{.tick}, handleEvent);
+        _ = try conn.subscribe(init.gpa, &.{.tick}, .{
+            .default = handleEvent,
+            .tick = handleTickEvent,
+        });
     }
 }
 
-fn handleEvent(gpa: std.mem.Allocator, payload: swayipc.IpcPayload) bool {
-    defer payload.deinit(gpa);
+fn handleEvent(gpa: std.mem.Allocator, event: swayipc.IpcPayload.Event, body: []const u8) bool {
+    _ = gpa;
+    _ = body;
 
-    std.log.debug("event: '{s}'", .{payload.body});
-
-    switch (payload.header.payload_type) {
-        .tick => |e| {
-            const tick = std.json.parseFromSlice(events.Tick, gpa, payload.body, .{ .ignore_unknown_fields = true }) catch |err| {
-                std.log.err("failed parsing json for event '{t}': {t}", .{ e, err });
-                return false;
-            };
-            defer tick.deinit();
-
-            if (std.mem.eql(u8, tick.value.payload, "hup")) {
-                return false;
-            }
-        },
-        else => |x| std.log.warn("ignoring event {t}", .{x}),
-    }
+    std.log.warn("unhandled event: '{t}'", .{event});
 
     return true;
+}
+
+fn handleTickEvent(tick: swayipc.events.Tick) bool {
+    return !std.mem.eql(u8, tick.payload, "hup");
 }

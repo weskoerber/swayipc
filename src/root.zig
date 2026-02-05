@@ -38,11 +38,17 @@ pub const IpcConnection = struct {
     reader: *std.Io.Reader,
     writer: *std.Io.Writer,
 
-    event_handler: ?*const EventHandler = null,
+    event_handlers: EventHandlers = .{},
 
     const json_opts: std.json.ParseOptions = .{ .ignore_unknown_fields = true, .allocate = .alloc_always };
 
-    pub const EventHandler = fn (std.mem.Allocator, IpcPayload) bool;
+    pub const EventHandlers = struct {
+        default: ?*const Default = null,
+        tick: ?*const Tick = null,
+
+        pub const Default = fn (std.mem.Allocator, IpcPayload.Event, []const u8) bool;
+        pub const Tick = fn (events.Tick) bool;
+    };
 
     pub fn init(reader: *std.Io.Reader, writer: *std.Io.Writer) IpcConnection {
         return .{
@@ -59,7 +65,7 @@ pub const IpcConnection = struct {
         self: *IpcConnection,
         gpa: std.mem.Allocator,
         event_list: []const IpcPayload.Event,
-        handler: *const EventHandler,
+        handlers: EventHandlers,
     ) !void {
         const body = try std.json.Stringify.valueAlloc(gpa, event_list, .{});
         defer gpa.free(body);
@@ -67,14 +73,14 @@ pub const IpcConnection = struct {
         var reply = try self.sendIpcMessage(gpa, .subscribe, body);
         defer reply.deinit(gpa);
 
-        const result = try std.json.parseFromSlice(replies.Subscribe, gpa, reply.body, .{ .ignore_unknown_fields = true });
+        const result = try std.json.parseFromSlice(replies.Subscribe, gpa, reply.body, json_opts);
         defer result.deinit();
 
         if (!result.value.success) {
             return error.SubscribeFailed;
         }
 
-        try self.listenForEvents(gpa, handler);
+        try self.listenForEvents(gpa, handlers);
     }
 
     pub fn getWorkspaces(self: *IpcConnection, gpa: std.mem.Allocator) !std.json.Parsed([]const replies.Workspace) {
@@ -129,18 +135,21 @@ pub const IpcConnection = struct {
         return try self.sendAndParseIpcMessage([]const replies.Seat, gpa, .get_seats, &.{});
     }
 
-    pub fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, payload_type: IpcPayload.PayloadType, body: []const u8) !IpcPayload {
+    pub fn sendIpcMessage(self: *IpcConnection, gpa: std.mem.Allocator, message: IpcPayload.Message, body: []const u8) !IpcPayload {
         const msg: IpcPayload = .{
             .header = .{
                 .magic = std.mem.bytesToValue([6]u8, IpcPayload.Header.magic_value),
                 .payload_length = @truncate(body.len),
-                .payload_type = payload_type,
+                .payload_type = .{ .message = message },
             },
             .body = body,
         };
 
         try IpcPayload.write(&msg, self.writer);
         var reply = try IpcPayload.readHead(self.reader);
+
+        assert(std.enums.fromInt(IpcPayload.Message, @intFromEnum(reply.header.payload_type)) != null);
+
         try reply.readBody(gpa, self.reader);
         return reply;
     }
@@ -149,7 +158,7 @@ pub const IpcConnection = struct {
         self: *IpcConnection,
         comptime T: type,
         gpa: std.mem.Allocator,
-        payload_type: IpcPayload.PayloadType,
+        payload_type: IpcPayload.Message,
         body: []const u8,
     ) !std.json.Parsed(T) {
         var reply = try self.sendIpcMessage(gpa, payload_type, body);
@@ -158,30 +167,45 @@ pub const IpcConnection = struct {
         return try std.json.parseFromSlice(T, gpa, reply.body, json_opts);
     }
 
-    fn listenForEvents(self: *IpcConnection, gpa: std.mem.Allocator, handler: *const EventHandler) !void {
+    fn listenForEvents(self: *IpcConnection, gpa: std.mem.Allocator, handlers: EventHandlers) !void {
         while (true) {
             var reply = try IpcPayload.readHead(self.reader);
+            defer reply.deinit(gpa);
+
+            assert(std.meta.activeTag(reply.header.payload_type) == .event);
+            const event = reply.header.payload_type.event;
+
             try reply.readBody(gpa, self.reader);
-            switch (reply.header.payload_type) {
-                .workspace,
-                .output,
-                .mode,
-                .window,
-                .barconfig_update,
-                .binding,
-                .shutdown,
-                .tick,
-                .bar_state_update,
-                .input,
-                => |x| {
-                    log.debug("received event {t}", .{x});
-                    if (!handler(gpa, reply)) {
-                        break;
+
+            var keep_listening: bool = false;
+            var handled: bool = false;
+
+            switch (event) {
+                .tick => {
+                    if (handlers.tick) |handler| {
+                        const json = try parseEventJson(events.Tick, gpa, reply.body);
+                        defer json.deinit();
+                        keep_listening = handler(json.value);
+                        handled = true;
                     }
                 },
-                else => |x| log.err("payload_type {t} is not an event", .{x}),
+                else => {},
+            }
+
+            if (!handled) {
+                if (handlers.default) |handler| {
+                    keep_listening = handler(gpa, event, reply.body);
+                }
+            }
+
+            if (!keep_listening) {
+                break;
             }
         }
+    }
+
+    fn parseEventJson(comptime T: type, gpa: std.mem.Allocator, body: []const u8) !std.json.Parsed(T) {
+        return try std.json.parseFromSlice(T, gpa, body, json_opts);
     }
 };
 
@@ -202,7 +226,12 @@ pub const IpcPayload = struct {
         pub const magic_value: []const u8 = "i3-ipc";
     };
 
-    pub const PayloadType = blk: {
+    pub const PayloadType = union(enum) {
+        message: Message,
+        event: Event,
+    };
+
+    pub const PayloadTypeTag = blk: {
         const names: []const []const u8 = std.meta.fieldNames(Message) ++ std.meta.fieldNames(Event);
         var fields: [names.len]u32 = undefined;
 
@@ -253,16 +282,18 @@ pub const IpcPayload = struct {
     };
 
     pub fn write(msg: *const IpcPayload, w: *Writer) !void {
+        assert(std.meta.activeTag(msg.header.payload_type) == .message);
+
         log.debug("> {s} {d} {t}: '{s}'", .{
             msg.header.magic,
             msg.header.payload_length,
-            msg.header.payload_type,
+            msg.header.payload_type.message,
             msg.body,
         });
 
         try w.writeAll(&msg.header.magic);
         try w.writeInt(u32, msg.header.payload_length, .native);
-        try w.writeInt(u32, @intFromEnum(msg.header.payload_type), .native);
+        try w.writeInt(u32, @intFromEnum(msg.header.payload_type.message), .native);
         try w.writeAll(msg.body);
 
         try w.flush();
@@ -273,19 +304,29 @@ pub const IpcPayload = struct {
         const payload_len = try r.takeInt(u32, .native);
         const payload_type = try r.takeInt(u32, .native);
 
+        const union_value: PayloadType = if (std.enums.fromInt(Message, payload_type)) |m|
+            .{ .message = m }
+        else if (std.enums.fromInt(Event, payload_type)) |e|
+            .{ .event = e }
+        else
+            return error.PayloadType;
+
         var reply: IpcPayload = .{
             .header = .{
                 .magic = magic,
                 .payload_length = payload_len,
-                .payload_type = std.enums.fromInt(PayloadType, payload_type) orelse return error.PayloadType,
+                .payload_type = union_value,
             },
             .body = &.{},
         };
 
-        log.debug("< {s} {d} {t}", .{
+        log.debug("< {s} {d} {s}", .{
             reply.header.magic,
             reply.header.payload_length,
-            reply.header.payload_type,
+            switch (reply.header.payload_type) {
+                .message => |m| @tagName(m),
+                .event => |e| @tagName(e),
+            },
         });
 
         return reply;
@@ -298,10 +339,13 @@ pub const IpcPayload = struct {
 
         self.body = body;
 
-        log.debug("< {s} {d} {t}: '{s}'", .{
+        log.debug("< {s} {d} {s}: '{s}'", .{
             self.header.magic,
             self.header.payload_length,
-            self.header.payload_type,
+            switch (self.header.payload_type) {
+                .message => |m| @tagName(m),
+                .event => |e| @tagName(e),
+            },
             self.body,
         });
     }
