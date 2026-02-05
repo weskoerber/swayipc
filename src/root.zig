@@ -63,6 +63,8 @@ pub const IpcConnection = struct {
         defer gpa.free(body);
 
         var reply = try self.sendIpcMessage(gpa, .subscribe, body);
+        defer reply.deinit(gpa);
+
         const result = try std.json.parseFromSlice(replies.Subscribe, gpa, reply.body, .{ .ignore_unknown_fields = true });
         defer result.deinit();
 
